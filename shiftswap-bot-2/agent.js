@@ -291,7 +291,7 @@ async function handleMessage({ teamId, message, client }) {
 
   if (!parsed.isShiftRequest) {
     await say(
-      `Hey! I'm the ShiftSwap Bot. Tell me about the shift you need covered and I'll reach out to your teammates.\n\nExample: _"I need someone to cover my Saturday June 14 shift from 9am–5pm, I'm a cashier."_`
+      `Hey! I'm the Shiftable AI. Tell me about the shift you need covered and I'll reach out to your teammates.\n\nExample: _"I need someone to cover my Saturday June 14 shift from 9am–5pm, I'm a cashier."_`
     );
     return;
   }
