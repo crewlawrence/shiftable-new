@@ -27,7 +27,7 @@ const receiver = new ExpressReceiver({
       success: (installation, installOptions, req, res) => {
         res.send(`
           <html><body style="font-family:sans-serif;text-align:center;padding:60px">
-            <h1>✅ ShiftSwap Bot installed!</h1>
+            <h1>✅ Shiftable AI installed!</h1>
             <p>Head back to Slack and DM <strong>ShiftSwap Bot</strong> to get started.</p>
           </body></html>
         `);
@@ -77,7 +77,7 @@ receiver.router.get("/", (req, res) => {
   res.send(`
     <html>
     <head>
-      <title>ShiftSwap Bot</title>
+      <title>Shiftable AI</title>
       <style>
         body { font-family:-apple-system,sans-serif; display:flex; flex-direction:column;
                align-items:center; justify-content:center; min-height:100vh; margin:0; background:#f9f9f9; }
@@ -92,7 +92,7 @@ receiver.router.get("/", (req, res) => {
     </head>
     <body>
       <div class="card">
-        <h1>🔄 ShiftSwap Bot</h1>
+        <h1>🔄 Shiftable AI</h1>
         <p>Need someone to cover your shift? Just DM the bot, tell it your shift details, and it'll reach out to your teammates one by one until someone says yes.</p>
         <a class="btn" href="${installUrl}">
           <img src="https://platform.slack-edge.com/img/add_to_slack.png" height="20" style="vertical-align:middle;margin-right:8px"/>
@@ -126,6 +126,6 @@ const PORT = process.env.PORT || 3000;
 (async () => {
   await migrate(); // Create tables in Turso if they don't exist
   await app.start(PORT);
-  console.log(`⚡️ ShiftSwap Bot running on port ${PORT}`);
+  console.log(`⚡️ Shiftable AI running on port ${PORT}`);
   console.log(`🔗 ${process.env.APP_URL || `http://localhost:${PORT}`}`);
 })();
