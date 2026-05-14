@@ -7,7 +7,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 async function parseShiftRequest(text) {
   const response = await anthropic.messages.create({
-    model: "claude-3-haiku-20250307",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 500,
     system: `You extract shift coverage details from employee messages.
 Return ONLY a JSON object (no markdown) with these fields:
@@ -60,7 +60,7 @@ function matchNamesToMembers(text, members) {
 
 async function conductCandidateConversation(conversationHistory, requesterName, candidateName, shift) {
   const response = await anthropic.messages.create({
-    model: "claude-3-haiku-20250307",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 300,
     system: `You are a friendly colleague messaging ${candidateName} on Slack on behalf of ${requesterName}, trying to find out if they can cover a shift.
 
@@ -94,7 +94,7 @@ Return ONLY a JSON object — no markdown, no explanation:
 
 async function generateOpeningMessage(requesterName, candidateName, shift) {
   const response = await anthropic.messages.create({
-    model: "claude-3-haiku-20250307",
+    model: "claude-sonnet-4-20250514",
     max_tokens: 150,
     system: `Write a casual, friendly Slack message asking someone if they can cover a coworker's shift.
 Sound like a real person, not a bot. Warm and direct. 1-2 sentences only.
@@ -110,7 +110,7 @@ Shift: ${shift.date}, ${shift.time}${shift.role ? `, ${shift.role}` : ""}${shift
 
 async function generateConfirmationMessage(requesterName, coverName, shift) {
   const response = await anthropic.messages.create({
-    model: "claude-3-haiku-20250307"
+    model: "claude-sonnet-4-20250514",
     max_tokens: 120,
     system: `Write a short, warm Slack message. 2 sentences max. Sound human. Return ONLY the message text.`,
     messages: [{
@@ -291,7 +291,7 @@ async function handleMessage({ teamId, message, client }) {
 
   if (!parsed.isShiftRequest) {
     await say(
-      `Hey! I'm the Shiftable AI. Tell me about the shift you need covered and I'll reach out to your teammates.\n\nExample: _"I need someone to cover my Saturday June 14 shift from 9am–5pm, I'm a cashier."_`
+      `Hey! I'm the ShiftSwap Bot. Tell me about the shift you need covered and I'll reach out to your teammates.\n\nExample: _"I need someone to cover my Saturday June 14 shift from 9am–5pm, I'm a cashier."_`
     );
     return;
   }
