@@ -29,22 +29,30 @@ async function getUserName(client, userId) {
 }
 
 async function openDM(client, userId) {
-  // conversations.open works with chat:write.public scope
-  // which allows the bot to DM anyone in the workspace
-  // without them needing to message the bot first
-  const res = await client.conversations.open({ users: userId });
-  return res.channel.id;
+  try {
+    const res = await client.conversations.open({ users: userId });
+    console.log("✅ DM opened for " + userId + ": " + res.channel.id);
+    return res.channel.id;
+  } catch (err) {
+    console.error("❌ conversations.open failed for " + userId + ":", err.message, JSON.stringify(err.data || {}));
+    throw err;
+  }
 }
 
 async function send(client, userId, text) {
   try {
-    // Try opening a DM channel first
     const ch = await openDM(client, userId);
     await client.chat.postMessage({ channel: ch, text });
+    console.log("✅ Message sent to " + userId);
   } catch (err) {
-    // Fallback: post directly to the user ID as the channel
-    console.log("⚠ DM open failed, posting directly to user ID:", err.message);
-    await client.chat.postMessage({ channel: userId, text });
+    console.error("❌ send failed for " + userId + ":", err.message, JSON.stringify(err.data || {}));
+    try {
+      console.log("↩ Trying direct channel post to " + userId);
+      await client.chat.postMessage({ channel: userId, text });
+      console.log("✅ Direct post succeeded for " + userId);
+    } catch (err2) {
+      console.error("❌ Direct post also failed:", err2.message, JSON.stringify(err2.data || {}));
+    }
   }
 }
 
