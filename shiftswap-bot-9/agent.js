@@ -316,15 +316,102 @@ async function reachOutToNext(client, teamId, request) {
     }
   }
 
+async function reachOutToNext(client, teamId, request) {
+  const { candidates, currentIndex, requesterId, shiftDetails } = request;
+
+  if (currentIndex >= candidates.length) {
+    await db.updateRequest(teamId, request.id, { status: "exhausted" });
+    await send(client, requesterId, "I reached out to everyone on your list but no one was available. You may want to contact your manager.");
+    return;
+  }
+
+  const candidateId = candidates[currentIndex];
+  const [requesterName, candidateName] = await Promise.all([
+    getUserName(client, requesterId),
+    getUserName(client, candidateId),
+  ]);
+
+  const result = await think(
+    "Write a short casual warm Slack message to " + candidateName + " asking if they can cover a shift for " + requesterName + ".\n" +
+    "Shift: " + (shiftDetails?.date || "") + " " + (shiftDetails?.time || "") + (shiftDetails?.role ? ", " + shiftDetails.role : "") + ".\n" +
+    "1-2 sentences. Sound like a real person.\n\n" +
+    "You MUST return valid JSON. Do not use markdown fences. Return exactly:\n{\"action\": \"reply\", \"message\": \"your message here\"}"
+  );
+
+  const openingMessage = (typeof result.message === "string" && result.message.trim())
+    ? result.message.trim()
+    : "Hey " + candidateName + ", any chance you can cover a shift for " + requesterName + "?";
+
+  console.log("📬 Attempting to reach " + candidateName + " (" + candidateId + ")");
+  let deliveredChannel = null;
+
+  // Step 1: Try DM
+  try {
+    const dmRes = await client.conversations.open({ users: candidateId });
+    const dmChannel = dmRes.channel.id;
+    console.log("📬 DM channel opened: " + dmChannel);
+    await client.chat.postMessage({ channel: dmChannel, text: openingMessage });
+    deliveredChannel = dmChannel;
+    console.log("✅ DM delivered to " + candidateName);
+  } catch (err) {
+    console.error("❌ DM failed - error:", err.message, "| slack error:", err.data?.error);
+  }
+
+  // Step 2: Try shared channels by checking members of each channel bot is in
+  if (!deliveredChannel) {
+    console.log("🔍 Looking for shared channels with " + candidateName);
+    try {
+      const listRes = await client.conversations.list({
+        types: "public_channel,private_channel",
+        exclude_archived: true,
+        limit: 200,
+      });
+      console.log("📋 Bot is in " + (listRes.channels || []).length + " channels");
+
+      for (const ch of listRes.channels || []) {
+        try {
+          const membersRes = await client.conversations.members({ channel: ch.id, limit: 200 });
+          if ((membersRes.members || []).includes(candidateId)) {
+            console.log("✅ Found shared channel: #" + ch.name + " (" + ch.id + ")");
+            await client.chat.postMessage({
+              channel: ch.id,
+              text: "<@" + candidateId + "> " + openingMessage,
+            });
+            deliveredChannel = ch.id;
+            console.log("✅ Message sent via #" + ch.name);
+            break;
+          }
+        } catch (chErr) {
+          console.log("⚠ Could not check channel " + ch.id + ": " + chErr.message);
+        }
+      }
+    } catch (err) {
+      console.error("❌ Channel list failed:", err.message);
+    }
+  }
+
+  if (!deliveredChannel) {
+    console.error("❌ Could not reach " + candidateName + " by any method");
+    await send(client, requesterId, "I couldn't reach *" + candidateName + "* — please add the ShiftSwap bot to a channel they're in (like #general). Skipping for now.");
+    const updated = await db.updateRequest(teamId, request.id, {
+      currentIndex: currentIndex + 1,
+      currentAskedUserId: null,
+      currentAskedChannelId: null,
+      conversationHistory: [],
+    });
+    await reachOutToNext(client, teamId, updated);
+    return;
+  }
+
   await db.updateRequest(teamId, request.id, {
-    status:                "pending",
-    currentAskedUserId:    candidateId,
-    currentAskedChannelId: candidateChannel,
-    conversationHistory:   [{ role: "assistant", content: openingMessage }],
+    status: "pending",
+    currentAskedUserId: candidateId,
+    currentAskedChannelId: deliveredChannel,
+    conversationHistory: [{ role: "assistant", content: openingMessage }],
   });
 
   await send(client, requesterId, "I just reached out to *" + candidateName + "* — I'll keep you posted!");
-  console.log("📤 Reached out to " + candidateName + " (" + candidateId + ")");
+  console.log("📤 Reached out to " + candidateName + " (" + candidateId + ") via " + deliveredChannel);
 }
 
 module.exports = { handleMessage };
