@@ -2,7 +2,7 @@ const Anthropic = require("@anthropic-ai/sdk");
 const db = require("./db");
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = "claude-haiku-4-5-20251001";
+const MODEL = "claude-3-haiku-20240307";
 
 const memberCache = new Map();
 const CACHE_TTL = 10 * 60 * 1000;
@@ -244,77 +244,6 @@ async function handleMessage({ teamId, message, client }) {
     await db.updateRequest(teamId, activeRequest.id, { conversationHistory: updatedHistory });
   }
 }
-
-async function reachOutToNext(client, teamId, request) {
-  const { candidates, currentIndex, requesterId, shiftDetails } = request;
-
-  if (currentIndex >= candidates.length) {
-    await db.updateRequest(teamId, request.id, { status: "exhausted" });
-    await send(client, requesterId, "I reached out to everyone on your list but no one was available. You may want to contact your manager.");
-    return;
-  }
-
-  const candidateId = candidates[currentIndex];
-  const [requesterName, candidateName] = await Promise.all([
-    getUserName(client, requesterId),
-    getUserName(client, candidateId),
-  ]);
-
-  const result = await think(
-    "Write a short casual warm Slack message to " + candidateName + " asking if they can cover a shift for " + requesterName + ".\n" +
-    "Shift: " + (shiftDetails?.date || "") + " " + (shiftDetails?.time || "") + (shiftDetails?.role ? ", " + shiftDetails.role : "") + ".\n" +
-    "1-2 sentences. Sound like a real person.\n\n" +
-    "You MUST return valid JSON. Do not use markdown fences. Return exactly:\n{\"action\": \"reply\", \"message\": \"your message here\"}"
-  );
-
-  const openingMessage = (typeof result.message === "string" && result.message.trim())
-    ? result.message.trim()
-    : "Hey " + candidateName + ", any chance you can cover a shift for " + requesterName + "?";
-  let candidateChannel;
-  try {
-    candidateChannel = await openDM(client, candidateId);
-    await client.chat.postMessage({ channel: candidateChannel, text: openingMessage });
-    console.log("✅ Message delivered to " + candidateName + " in channel " + candidateChannel);
-  } catch (err) {
-    console.error("❌ DM failed for " + candidateName + ":", err.message);
-    // Fallback: find a shared channel and mention them
-    try {
-      const botChannels = await client.conversations.list({ types: "public_channel,private_channel", exclude_archived: true, limit: 200 });
-      const userConvs = await client.users.conversations({ user: candidateId, types: "public_channel,private_channel", exclude_archived: true });
-      const botIds = new Set((botChannels.channels || []).map(c => c.id));
-      const shared = (userConvs.channels || []).find(c => botIds.has(c.id));
-
-      if (shared) {
-        await client.chat.postMessage({
-          channel: shared.id,
-          text: "<@" + candidateId + "> " + openingMessage,
-        });
-        candidateChannel = shared.id;
-        console.log("✅ Sent via shared channel #" + shared.name + " to " + candidateName);
-      } else {
-        await send(client, requesterId, "I wasn't able to reach " + candidateName + " — we don't share any channels. Skipping to the next person.");
-        const updated = await db.updateRequest(teamId, request.id, {
-          currentIndex: currentIndex + 1,
-          currentAskedUserId: null,
-          currentAskedChannelId: null,
-          conversationHistory: [],
-        });
-        await reachOutToNext(client, teamId, updated);
-        return;
-      }
-    } catch (err2) {
-      console.error("❌ Shared channel fallback failed:", err2.message);
-      await send(client, requesterId, "I wasn't able to reach " + candidateName + ". Skipping to the next person.");
-      const updated = await db.updateRequest(teamId, request.id, {
-        currentIndex: currentIndex + 1,
-        currentAskedUserId: null,
-        currentAskedChannelId: null,
-        conversationHistory: [],
-      });
-      await reachOutToNext(client, teamId, updated);
-      return;
-    }
-  }
 
 async function reachOutToNext(client, teamId, request) {
   const { candidates, currentIndex, requesterId, shiftDetails } = request;
