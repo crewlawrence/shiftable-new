@@ -4,6 +4,8 @@ const db = require("./db");
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MODEL = "claude-haiku-4-5-20251001";
 
+const { WebClient } = require("@slack/web-api");
+
 const memberCache = new Map();
 const CACHE_TTL = 10 * 60 * 1000;
 
@@ -46,17 +48,31 @@ async function send(client, userId, text) {
 }
 
 async function sendToCandidate(client, candidateId, candidateName, text) {
-  // Try DM first
+  // If a user token is configured, use it — messages come from a real person
+  // and can reach anyone in the workspace without restrictions
+  if (process.env.SLACK_USER_TOKEN) {
+    try {
+      const userClient = new WebClient(process.env.SLACK_USER_TOKEN);
+      const res = await userClient.conversations.open({ users: candidateId });
+      await userClient.chat.postMessage({ channel: res.channel.id, text });
+      console.log("Sent to " + candidateName + " via user token");
+      return res.channel.id;
+    } catch (err) {
+      console.error("User token send failed: " + err.message + " — falling back to bot token");
+    }
+  }
+
+  // Fallback: try bot DM
   try {
     const res = await client.conversations.open({ users: candidateId });
     await client.chat.postMessage({ channel: res.channel.id, text });
-    console.log("DM sent to " + candidateName);
+    console.log("DM sent to " + candidateName + " via bot token");
     return res.channel.id;
   } catch (err) {
-    console.log("DM failed for " + candidateName + ": " + err.message + " (code: " + (err.data && err.data.error) + ")");
+    console.log("Bot DM failed for " + candidateName + ": " + err.message);
   }
 
-  // Try shared channel
+  // Last resort: shared channel with mention
   try {
     const listRes = await client.conversations.list({
       types: "public_channel,private_channel",
@@ -75,7 +91,7 @@ async function sendToCandidate(client, candidateId, candidateName, text) {
           return ch.id;
         }
       } catch (chErr) {
-        // skip this channel
+        // skip channel
       }
     }
   } catch (err) {
