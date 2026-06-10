@@ -141,15 +141,20 @@ async function handleMessage({ teamId, message, client }) {
       .join("\n");
 
     const result = await think(
-      "You are sending Slack messages AS " + requesterName + " to " + userName + " about covering a shift.\n" +
-      "Write in FIRST PERSON as " + requesterName + " — use 'I', 'my', 'me'. Never refer to " + requesterName + " in third person.\n" +
-      "Shift: " + (shift.date || "unknown") + ", " + (shift.time || "unknown") + (shift.role ? ", " + shift.role : "") + ".\n\n" +
-      "Previous messages:\n" + (history || "(none)") + "\n\n" +
+      "You are ShiftSwap, an AI scheduling assistant having a conversation with " + userName + " on behalf of " + requesterName + ".\n" +
+      "Speak as the agent in third person — refer to " + requesterName + " as '" + requesterName + "', not as 'I' or 'me'.\n" +
+      "Shift: " + (shift.date || "unknown") + ", " + (shift.time || "unknown") + (shift.role ? ", " + shift.role : "") + ".\n" +
+      (shift.reason ? "Reason: " + shift.reason + "\n" : "Do NOT mention or invent any reason for needing coverage.\n") +
+      "\nPrevious messages:\n" + (history || "(none)") + "\n\n" +
       userName + " just said: \"" + text + "\"\n\n" +
-      "Reply naturally in 1-3 sentences. Return ONLY valid JSON no markdown:\n" +
-      "{\"action\":\"accepted\",\"message\":\"...\"} or {\"action\":\"declined\",\"message\":\"...\"} or {\"action\":\"undecided\",\"message\":\"...\"}\n\n" +
-      "accepted = yes/sure/I can/yeah/no problem/I am free\n" +
-      "declined = no/cant/busy/sorry/have plans/not available"
+      "Reply naturally in 1-3 sentences.\n\n" +
+      "IMPORTANT decision rules:\n" +
+      "- Use 'accepted' ONLY if they gave a clear definitive yes with no conditions or uncertainty\n" +
+      "- Use 'declined' ONLY if they gave a clear definitive no\n" +
+      "- Use 'undecided' for EVERYTHING else including: maybe, probably, I think so, let me check, I might be able to, not sure, possibly, I'll try\n" +
+      "When undecided, gently follow up to get a clear answer.\n\n" +
+      "Return ONLY valid JSON no markdown:\n" +
+      "{\"action\":\"accepted\",\"message\":\"...\"} or {\"action\":\"declined\",\"message\":\"...\"} or {\"action\":\"undecided\",\"message\":\"...\"}"
     );
 
     const updatedHistory = [
@@ -286,15 +291,15 @@ async function reachOutToNext(client, teamId, request) {
   const candidateName = await getUserName(client, candidateId);
 
   const result = await think(
-    "Write a short casual Slack message FROM " + requesterName + " TO " + candidateName + " asking if they can cover a shift.\n" +
-    "Write in FIRST PERSON as " + requesterName + " — use 'I', 'my', 'me'. Do NOT refer to " + requesterName + " in third person.\n" +
-    "Shift details (use EXACTLY these, do not change or invent anything):\n" +
+    "You are ShiftSwap, an AI scheduling assistant. Write a short friendly Slack message to " + candidateName + " on behalf of " + requesterName + ".\n" +
+    "Speak as the agent — refer to " + requesterName + " in third person (e.g. '" + requesterName + " is looking for coverage').\n" +
+    "Shift details (use EXACTLY these, do not change or add anything):\n" +
     "- Date: " + (shiftDetails && shiftDetails.date || "unknown") + "\n" +
     "- Time: " + (shiftDetails && shiftDetails.time || "unknown") + "\n" +
     (shiftDetails && shiftDetails.role ? "- Role: " + shiftDetails.role + "\n" : "") +
     (shiftDetails && shiftDetails.reason ? "- Reason: " + shiftDetails.reason + "\n" : "") +
-    "\nIMPORTANT: Do NOT invent or assume any reason (sickness, plans, etc.) unless it is listed above.\n" +
-    "Keep it simple and friendly. 1-2 sentences.\n\n" +
+    "\nIMPORTANT: Do NOT mention or invent any reason unless one is explicitly listed above. Do not say they are sick, have plans, or anything else unless stated.\n" +
+    "Keep it short and friendly. 1-2 sentences.\n\n" +
     "Return ONLY valid JSON no markdown fences:\n{\"action\":\"reply\",\"message\":\"your message here\"}"
   );
 
